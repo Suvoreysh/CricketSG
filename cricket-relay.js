@@ -99,16 +99,23 @@ function ingest(ws) {
     if (!isBinary) {
       let m; try { m = JSON.parse(data.toString()); } catch { return; }
       if (m.type !== 'start' || ff) return;
-      const key = String(m.key || '').trim();
-      if (!/^[\w-]+$/.test(key)) { send({ type: 'error', msg: 'Invalid stream key' }); return ws.close(); }
+      let target, secret;
+      if (m.url) { // direct mode: URL returned by Facebook's Live Video API
+        try { const u = new URL(String(m.url)); if (!/^rtmps?:$/.test(u.protocol) || !/(^|\.)facebook\.com$/.test(u.hostname)) throw 0; target = String(m.url); secret = target; }
+        catch { send({ type: 'error', msg: 'Invalid Facebook stream URL' }); return ws.close(); }
+      } else {
+        const key = String(m.key || '').trim();
+        if (!/^[\w-]+$/.test(key)) { send({ type: 'error', msg: 'Invalid stream key' }); return ws.close(); }
+        target = 'rtmps://live-api-s.facebook.com:443/rtmp/' + key; secret = key;
+      }
       const args = ['-loglevel', 'warning', '-fflags', '+genpts', '-i', 'pipe:0'];
       if (!m.audio) args.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-map', '0:v:0', '-map', '1:a:0', '-shortest');
       args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-pix_fmt', 'yuv420p',
         '-b:v', '3000k', '-maxrate', '3000k', '-bufsize', '6000k', '-g', '60', '-r', '30',
-        '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-f', 'flv', 'rtmps://live-api-s.facebook.com:443/rtmp/' + key);
+        '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-f', 'flv', target);
       ff = spawn('ffmpeg', args);
       ff.on('error', () => { send({ type: 'error', msg: 'ffmpeg not found — install ffmpeg' }); ws.close(); });
-      ff.stderr.on('data', d => send({ type: 'log', msg: d.toString().trim().replace(key, '****') }));
+      ff.stderr.on('data', d => send({ type: 'log', msg: d.toString().trim().split(secret).join('****') }));
       ff.on('exit', c => { send({ type: 'ended', msg: 'ffmpeg exited (' + c + ')' }); ws.close(); });
       ff.stdin.on('error', () => {});
       send({ type: 'log', msg: 'Relay connected to ffmpeg → Facebook' });

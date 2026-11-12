@@ -114,6 +114,14 @@ kbd{background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:0 
 <section id="t-card" class="tab"><div id="cardWrap"></div></section>
 
 <section id="t-fb" class="tab">
+  <div class="panel" style="margin-bottom:14px"><h3>DIRECT: LOGIN WITH FACEBOOK (no stream key)</h3>
+    <p class="mu">Create a free Facebook App once (see the guide), paste its App ID, log in, and press Go Live. Works on a phone browser too.</p>
+    <div class="row"><input id="fbApp" placeholder="Facebook App ID" style="flex:1;min-width:180px">
+      <select id="fbDest"><option value="profile">My profile</option><option value="page">A Page I manage</option></select>
+      <button id="fbLogin">Login with Facebook</button></div>
+    <div class="row"><select id="fbPage" style="display:none;flex:1"></select><input id="fbTitle" placeholder="Live title" value="Live Cricket" style="flex:1;min-width:160px">
+      <label><input type="checkbox" id="micD" checked> mic</label><button class="pri" id="fbGo">● Go Live (direct)</button><span id="fbWho" class="mu"></span></div>
+  </div>
   <div class="grid2">
     <div class="panel"><h3>GO LIVE TO FACEBOOK (program feed incl. score overlay + replays)</h3>
       <p class="mu">1. Open <a style="color:#7aa2ff" target="_blank" rel="noopener" href="https://www.facebook.com/live/producer">Facebook Live Producer</a> → “Streaming software” → copy the <b>stream key</b>.<br>
@@ -528,21 +536,51 @@ document.addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target
 /* ---------- Facebook Live relay + embed ---------- */
 $('#relayUrl').value=location.protocol.startsWith('http')?(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ingest':'ws://localhost:8080/ingest';
 let ws=null,rec=null,micS=null;const flog=t=>{const p=$('#fbLog');p.textContent+=t+'\n';p.scrollTop=1e9};
-function stopLive(msg){try{rec&&rec.state!=='inactive'&&rec.stop()}catch(e){}if(micS)micS.getTracks().forEach(t=>t.stop());micS=null;try{ws&&ws.close()}catch(e){}ws=null;rec=null;
+let fbLive=null,fbUser=null,fbReady=false;
+function stopLive(msg){if(fbLive){const f=fbLive;fbLive=null;fetch('https://graph.facebook.com/v26.0/'+f.id,{method:'POST',body:new URLSearchParams({end_live_video:'true',access_token:f.token})}).catch(()=>{})}try{rec&&rec.state!=='inactive'&&rec.stop()}catch(e){}if(micS)micS.getTracks().forEach(t=>t.stop());micS=null;try{ws&&ws.close()}catch(e){}ws=null;rec=null;
   $('#goLive').disabled=false;$('#endLive').disabled=true;$('#fbSt').textContent=msg||'idle';$('#liveBadge').textContent='OFFLINE';$('#liveBadge').classList.remove('live')}
-$('#goLive').onclick=()=>{const key=$('#skey').value.trim();if(!key)return toast('Paste your Facebook stream key');
+$('#goLive').onclick=()=>{const key=$('#skey').value.trim();if(!key)return toast('Paste your Facebook stream key');beginStream({key})};
+function beginStream(payload){
   $('#goLive').disabled=true;$('#fbSt').textContent='connecting…';ws=new WebSocket($('#relayUrl').value);
   ws.onerror=()=>{flog('Cannot reach relay. Run: node cricket-relay.js');stopLive('relay unreachable')};
   ws.onclose=()=>{if(rec)stopLive('closed')};
   ws.onmessage=e=>{try{const m=JSON.parse(e.data);flog(m.msg||m.type);if(m.type==='error'||m.type==='ended')stopLive(m.type)}catch(_){}};
   ws.onopen=async()=>{const stream=pg.captureStream(30);let audio=false;
-    if($('#micC').checked){try{micS=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});micS.getAudioTracks().forEach(t=>stream.addTrack(t));audio=true}catch(e){flog('Mic unavailable — streaming silent')}}
+    if($('#micC').checked||(payload.url&&$('#micD').checked)){try{micS=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});micS.getAudioTracks().forEach(t=>stream.addTrack(t));audio=true}catch(e){flog('Mic unavailable — streaming silent')}}
     const mimes=audio?['video/webm;codecs=h264,opus','video/webm;codecs=vp8,opus','video/webm']:['video/webm;codecs=h264','video/webm;codecs=vp8','video/webm'];
-    const mime=mimes.find(t=>MediaRecorder.isTypeSupported(t));ws.send(JSON.stringify({type:'start',key,audio}));
+    const mime=mimes.find(t=>MediaRecorder.isTypeSupported(t));ws.send(JSON.stringify(Object.assign({type:'start',audio},payload)));
     rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:3e6,audioBitsPerSecond:128e3});
     rec.ondataavailable=e=>{if(e.data.size&&ws&&ws.readyState===1)ws.send(e.data)};rec.start(250);
     $('#endLive').disabled=false;$('#fbSt').textContent='● LIVE';$('#liveBadge').textContent='LIVE';$('#liveBadge').classList.add('live');flog('Streaming '+mime)}};
 $('#endLive').onclick=()=>stopLive('ended');
+/* ---------- direct Facebook login (Live Video API, no stream key) ---------- */
+try{$('#fbApp').value=localStorage.getItem('cls-fbapp')||''}catch(e){}
+$('#fbDest').onchange=()=>{$('#fbPage').style.display='none'};
+function loadFB(appId){return new Promise((ok,no)=>{if(window.FB&&fbReady)return ok();
+  window.fbAsyncInit=()=>{FB.init({appId,version:'v26.0',cookie:false,xfbml:false});fbReady=true;ok()};
+  const s=document.createElement('script');s.src='https://connect.facebook.net/en_US/sdk.js';s.async=true;s.onerror=()=>no(new Error('Could not load Facebook SDK'));document.head.appendChild(s)})}
+$('#fbLogin').onclick=async()=>{
+  const appId=$('#fbApp').value.trim();if(!/^\d{6,20}$/.test(appId))return toast('Enter your Facebook App ID (numbers)');
+  try{localStorage.setItem('cls-fbapp',appId)}catch(e){}
+  try{await loadFB(appId)}catch(e){return toast(e.message)}
+  const page=$('#fbDest').value==='page';
+  FB.login(async r=>{
+    if(!r.authResponse)return toast('Facebook login cancelled');
+    fbUser={token:r.authResponse.accessToken,id:r.authResponse.userID};$('#fbWho').textContent='Logged in';
+    if(page){try{const j=await (await fetch('https://graph.facebook.com/v26.0/me/accounts?fields=name,access_token&access_token='+encodeURIComponent(fbUser.token))).json();
+      const sel=$('#fbPage');sel.innerHTML=(j.data||[]).map(p=>`<option value="${esc(p.id)}" data-tok="${esc(p.access_token)}">${esc(p.name)}</option>`).join('')||'<option value="">No Pages found</option>';sel.style.display='block'}catch(e){toast('Could not load Pages')}}
+    toast('Facebook connected')},
+    {scope:page?'publish_video,pages_show_list,pages_read_engagement,pages_manage_posts':'publish_video'})};
+$('#fbGo').onclick=async()=>{
+  if(!fbUser)return toast('Login with Facebook first');
+  let id='me',tok=fbUser.token;
+  if($('#fbDest').value==='page'){const o=$('#fbPage').selectedOptions[0];if(!o||!o.value)return toast('Pick a Page');id=o.value;tok=o.dataset.tok}
+  $('#fbGo').disabled=true;
+  try{const j=await (await fetch('https://graph.facebook.com/v26.0/'+id+'/live_videos',{method:'POST',body:new URLSearchParams({status:'LIVE_NOW',title:$('#fbTitle').value||'Live Cricket',access_token:tok})})).json();
+    if(!j.secure_stream_url){const m=(j.error&&j.error.message)||'unknown error';flog('Facebook: '+m);toast('Facebook refused: '+m);return}
+    fbLive={id:j.id,token:tok};beginStream({url:j.secure_stream_url})}
+  catch(e){toast('Network error talking to Facebook')}finally{$('#fbGo').disabled=false}};
+
 $('#fbLoad').onclick=()=>{const u=$('#fbUrl').value.trim();if(!/^https:\/\/(www\.|m\.|web\.)?(facebook\.com|fb\.watch)\//.test(u))return toast('Enter a facebook.com video URL');
   const h=`<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u)}&show_text=false&autoplay=true&width=734" allow="autoplay; encrypted-media; picture-in-picture; web-share" allowfullscreen></iframe>`;
   $('#fbEmbed').innerHTML=h;$('#fbEmbed2').innerHTML=h};
