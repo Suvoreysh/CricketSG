@@ -7,7 +7,43 @@
 const http = require('http'), fs = require('fs'), path = require('path'), { spawn } = require('child_process');
 const { WebSocketServer } = require('ws');
 const QRCode = require('qrcode');
+const crypto = require('crypto');
 const PORT = process.env.PORT || 8080;
+
+/* ---------------- roles, login and join codes (all checked on the server) ----------------
+   Set these environment variables on the server (Render > Environment):
+     ADMIN_PHONE  = admin phone number      ADMIN_PASS = admin password
+   Optional: SESSION_SECRET (any long random text; changing it logs everybody out and voids all codes). */
+const ADMIN_PHONE = (process.env.ADMIN_PHONE || '').replace(/\D/g, ''), ADMIN_PASS = process.env.ADMIN_PASS || '';
+const ADMIN_OK = !!(ADMIN_PHONE && ADMIN_PASS);
+const SECRET = ADMIN_OK
+  ? crypto.createHash('sha256').update('cls1|' + ADMIN_PHONE + '|' + ADMIN_PASS + '|' + (process.env.SESSION_SECRET || '')).digest()
+  : crypto.randomBytes(32);
+const hmac = s => crypto.createHmac('sha256', SECRET).update(s).digest('base64url');
+const eq = (a, b) => crypto.timingSafeEqual(crypto.createHash('sha256').update(String(a)).digest(), crypto.createHash('sha256').update(String(b)).digest());
+const mkToken = role => { const p = role + '.' + (Date.now() + 12 * 3600e3); return p + '.' + hmac('t|' + p); };
+function readToken(t) {
+  const m = /^(admin|umpire|broadcaster)\.(\d+)\.([\w-]+)$/.exec(String(t || ''));
+  if (!m || !eq(m[3], hmac('t|' + m[1] + '.' + m[2])) || Date.now() > +m[2]) return null;
+  return { role: m[1] };
+}
+const A32 = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', day = () => Math.floor(Date.now() / 864e5);
+const csig = (role, rand, d) => hmac('c|' + role + rand + d).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6);
+function mkCode(role) { let r = ''; for (const b of crypto.randomBytes(6)) r += A32[b % 32]; return (role === 'umpire' ? 'UMP' : 'BRD') + '-' + r + '-' + csig(role, r, day()); }
+function readCode(c) { // codes are signed, so they keep working after a server restart; valid ~7 days
+  const m = /^(UMP|BRD)-([A-Z2-9]{6})-([A-Z0-9]{6})$/.exec(String(c || '').trim().toUpperCase());
+  if (!m) return null; const role = m[1] === 'UMP' ? 'umpire' : 'broadcaster';
+  let ok = false; for (let k = 0; k < 8; k++) if (eq(m[3], csig(role, m[2], day() - k))) ok = true;
+  return ok ? role : null;
+}
+const fails = new Map(); // simple brute-force protection per IP
+const ipOf = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+const limited = ip => { const n = Date.now(), a = (fails.get(ip) || []).filter(t => n - t < 600e3); fails.set(ip, a); return a.length >= 15; };
+const addFail = ip => { const a = fails.get(ip) || []; a.push(Date.now()); fails.set(ip, a); };
+const readBody = req => new Promise(ok => { let s = ''; req.on('data', d => { s += d; if (s.length > 2048) req.destroy(); }); req.on('end', () => { try { ok(JSON.parse(s || '{}')); } catch { ok({}); } }); });
+const sendJson = (res, code, o) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(o)); };
+const bearer = req => readToken((String(req.headers.authorization || '').match(/^Bearer (.+)$/) || [])[1]);
+
 
 const PHONE_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Phone camera</title>
@@ -78,6 +114,40 @@ const okOrigin = req => { // page must come from this same server (or localhost)
 
 const srv = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
+  if (u.pathname.startsWith('/api/')) {
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'POST only' });
+    const b = await readBody(req), ip = ipOf(req);
+    if (u.pathname === '/api/me') { const w = bearer(req); return w ? sendJson(res, 200, w) : sendJson(res, 401, { error: 'Not logged in' }); }
+    if (u.pathname === '/api/gen') {
+      const w = bearer(req); if (!w || w.role !== 'admin') return sendJson(res, 403, { error: 'Admin only' });
+      if (b.role !== 'umpire' && b.role !== 'broadcaster') return sendJson(res, 400, { error: 'role must be umpire or broadcaster' });
+      return sendJson(res, 200, { code: mkCode(b.role), role: b.role });
+    }
+    if (u.pathname === '/api/key/get') {
+      const w = bearer(req); if (!w || (w.role !== 'broadcaster' && w.role !== 'admin')) return sendJson(res, 403, { error: 'Not allowed' });
+      return sendJson(res, 200, shared ? { ready: true, title: shared.title, privacy: shared.privacy, at: shared.at } : { ready: false });
+    }
+    if (u.pathname === '/api/key/set' || u.pathname === '/api/key/clear') {
+      const w = bearer(req); if (!w || w.role !== 'admin') return sendJson(res, 403, { error: 'Admin only' });
+      if (u.pathname === '/api/key/clear') { shared = null; return sendJson(res, 200, { ready: false }); }
+      if (!fbUrlOk(b.url)) return sendJson(res, 400, { error: 'Invalid Facebook stream URL' });
+      shared = { url: String(b.url), title: String(b.title || '').slice(0, 100), privacy: String(b.privacy || '').slice(0, 20), at: Date.now() };
+      return sendJson(res, 200, { ready: true });
+    }
+    if (limited(ip)) return sendJson(res, 429, { error: 'Too many attempts. Wait 10 minutes.' });
+    if (u.pathname === '/api/login') {
+      if (!ADMIN_OK) return sendJson(res, 503, { error: 'Admin login is not set up on the server (set ADMIN_PHONE and ADMIN_PASS).' });
+      const a = eq(String(b.phone || '').replace(/\D/g, ''), ADMIN_PHONE), c = eq(String(b.password || ''), ADMIN_PASS);
+      if (a && c) return sendJson(res, 200, { token: mkToken('admin'), role: 'admin' });
+      addFail(ip); return sendJson(res, 401, { error: 'Wrong phone number or password' });
+    }
+    if (u.pathname === '/api/join') {
+      const role = readCode(b.code);
+      if (role) return sendJson(res, 200, { token: mkToken(role), role });
+      addFail(ip); return sendJson(res, 401, { error: 'Invalid or expired code' });
+    }
+    return sendJson(res, 404, { error: 'Not found' });
+  }
   if (u.pathname === '/cam') { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(PHONE_PAGE); }
   if (u.pathname === '/qr') {
     const d = u.searchParams.get('d') || '';
@@ -100,7 +170,10 @@ function ingest(ws) {
       let m; try { m = JSON.parse(data.toString()); } catch { return; }
       if (m.type !== 'start' || ff) return;
       let target, secret;
-      if (m.url) { // direct mode: URL returned by Facebook's Live Video API
+      if (m.shared) { // key prepared by the admin
+        if (!shared) { send({ type: 'error', msg: 'The admin has not generated a stream key yet' }); return ws.close(); }
+        target = shared.url; secret = target;
+      } else if (m.url) { // direct mode: URL returned by Facebook's Live Video API
         try { const u = new URL(String(m.url)); if (!/^rtmps?:$/.test(u.protocol) || !/(^|\.)facebook\.com$/.test(u.hostname)) throw 0; target = String(m.url); secret = target; }
         catch { send({ type: 'error', msg: 'Invalid Facebook stream URL' }); return ws.close(); }
       } else {
@@ -157,11 +230,34 @@ function signal(ws, url) {
   });
 }
 
-const wss = new WebSocketServer({ noServer: true });
+/* ---------------- stream key set by the admin (kept on the server, never sent to the broadcaster) ---------------- */
+let shared = null; // { url, title, privacy, at }
+const fbUrlOk = v => { try { const u = new URL(String(v)); return /^rtmps?:$/.test(u.protocol) && /(^|\.)facebook\.com$/.test(u.hostname); } catch { return false; } };
+
+/* ---------------- live match state (umpire -> broadcaster) ---------------- */
+let lastState = null; const stClients = new Set();
+function stateConn(ws, who) {
+  stClients.add(ws); if (lastState) ws.send(lastState);
+  ws.on('message', d => {
+    if (who.role !== 'umpire' && who.role !== 'admin') return; // only the scorer can write
+    const s = d.toString(); let m; try { m = JSON.parse(s); } catch { return; }
+    if (m.type !== 'state' || !m.db) return;
+    lastState = s; stClients.forEach(c => { if (c !== ws && c.readyState === 1) c.send(s); });
+  });
+  ws.on('close', () => stClients.delete(ws));
+}
+
+const wss = new WebSocketServer({ noServer: true, maxPayload: 5 * 1024 * 1024 });
 srv.on('upgrade', (req, sock, head) => {
   const u = new URL(req.url, 'http://x');
-  if (!okOrigin(req) || (u.pathname !== '/ingest' && u.pathname !== '/signal')) { sock.destroy(); return; }
-  wss.handleUpgrade(req, sock, head, ws => (u.pathname === '/ingest' ? ingest(ws) : signal(ws, u)));
+  const who = readToken(u.searchParams.get('t'));
+  const isStudio = u.pathname === '/signal' && u.searchParams.get('role') === 'studio';
+  const allowed = okOrigin(req) && (
+    (u.pathname === '/ingest' && who && (who.role === 'broadcaster' || who.role === 'admin')) ||
+    (u.pathname === '/signal' && (!isStudio || (who && (who.role === 'broadcaster' || who.role === 'admin')))) ||
+    (u.pathname === '/state' && who));
+  if (!allowed) { sock.destroy(); return; }
+  wss.handleUpgrade(req, sock, head, ws => (u.pathname === '/ingest' ? ingest(ws) : u.pathname === '/state' ? stateConn(ws, who) : signal(ws, u)));
 });
 
-srv.listen(PORT, process.env.PORT ? '0.0.0.0' : '127.0.0.1', () => console.log('Cricket Live Studio → http://localhost:' + PORT));
+srv.listen(PORT, process.env.PORT ? '0.0.0.0' : '127.0.0.1', () => { console.log('Cricket Live Studio → http://localhost:' + PORT); if (!ADMIN_OK) console.log('WARNING: set ADMIN_PHONE and ADMIN_PASS environment variables to enable admin login.'); });
