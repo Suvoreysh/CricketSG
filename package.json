@@ -1,0 +1,8 @@
+{
+  "name": "cricket-live-studio",
+  "version": "1.0.0",
+  "private": true,
+  "main": "cricket-relay.js",
+  "scripts": { "start": "node cricket-relay.js" },
+  "dependencies": { "ws": "^8.18.0" }
+}
