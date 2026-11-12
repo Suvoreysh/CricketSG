@@ -13,9 +13,9 @@ const srv = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({
   server: srv, path: '/ingest',
-  verifyClient: ({ origin }) => { // only pages served from this machine may use the relay
+  verifyClient: ({ origin, req }) => { // page origin must be localhost OR the same host that serves this relay (Render)
     if (!origin) return true;
-    try { const h = new URL(origin).hostname; return h === 'localhost' || h === '127.0.0.1'; } catch { return false; }
+    try { const u = new URL(origin); return u.host === req.headers.host || u.hostname === 'localhost' || u.hostname === '127.0.0.1'; } catch { return false; }
   }
 });
 
@@ -30,7 +30,7 @@ wss.on('connection', ws => {
       if (!/^[\w-]+$/.test(key)) { send({ type: 'error', msg: 'Invalid stream key' }); return ws.close(); }
       const args = ['-loglevel', 'warning', '-fflags', '+genpts', '-i', 'pipe:0'];
       if (!m.audio) args.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-map', '0:v:0', '-map', '1:a:0', '-shortest');
-      args.push('-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency', '-pix_fmt', 'yuv420p',
+      args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'zerolatency', '-pix_fmt', 'yuv420p',
         '-b:v', '3000k', '-maxrate', '3000k', '-bufsize', '6000k', '-g', '60', '-r', '30',
         '-c:a', 'aac', '-b:a', '128k', '-ar', '44100', '-f', 'flv', 'rtmps://live-api-s.facebook.com:443/rtmp/' + key);
       ff = spawn('ffmpeg', args);
@@ -44,4 +44,4 @@ wss.on('connection', ws => {
   ws.on('close', () => { if (ff) { try { ff.stdin.end(); ff.kill('SIGINT'); } catch {} } });
 });
 
-srv.listen(PORT, '127.0.0.1', () => console.log('Cricket Live Studio → http://localhost:' + PORT));
+srv.listen(PORT, process.env.PORT ? '0.0.0.0' : '127.0.0.1', () => console.log('Cricket Live Studio → http://localhost:' + PORT));
