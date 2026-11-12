@@ -14,7 +14,8 @@ const PORT = process.env.PORT || 8080;
    Set these environment variables on the server (Render > Environment):
      ADMIN_PHONE  = admin phone number      ADMIN_PASS = admin password
    Optional: SESSION_SECRET (any long random text; changing it logs everybody out and voids all codes). */
-const ADMIN_PHONE = (process.env.ADMIN_PHONE || '').replace(/\D/g, ''), ADMIN_PASS = process.env.ADMIN_PASS || '';
+const envGet = n => { for (const k of Object.keys(process.env)) if (k.trim().toUpperCase() === n) return String(process.env[k]).trim(); return ''; };
+const ADMIN_PHONE = envGet('ADMIN_PHONE').replace(/\D/g, ''), ADMIN_PASS = envGet('ADMIN_PASS');
 const ADMIN_OK = !!(ADMIN_PHONE && ADMIN_PASS);
 const SECRET = ADMIN_OK
   ? crypto.createHash('sha256').update('cls1|' + ADMIN_PHONE + '|' + ADMIN_PASS + '|' + (process.env.SESSION_SECRET || '')).digest()
@@ -114,6 +115,10 @@ const okOrigin = req => { // page must come from this same server (or localhost)
 
 const srv = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
+  if (u.pathname === '/status') { // names only, never values
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({ build: 'roles-v3', adminReady: ADMIN_OK, phoneSet: !!ADMIN_PHONE, passSet: !!ADMIN_PASS, adminLikeNames: Object.keys(process.env).filter(k => /admin|phone|pass/i.test(k)).map(k => JSON.stringify(k)) }));
+  }
   if (u.pathname.startsWith('/api/')) {
     if (req.method !== 'POST') return sendJson(res, 405, { error: 'POST only' });
     const b = await readBody(req), ip = ipOf(req);
@@ -137,7 +142,7 @@ const srv = http.createServer(async (req, res) => {
     if (limited(ip)) return sendJson(res, 429, { error: 'Too many attempts. Wait 10 minutes.' });
     if (u.pathname === '/api/login') {
       if (!ADMIN_OK) return sendJson(res, 503, { error: 'Admin login is not set up on the server (set ADMIN_PHONE and ADMIN_PASS).' });
-      const a = eq(String(b.phone || '').replace(/\D/g, ''), ADMIN_PHONE), c = eq(String(b.password || ''), ADMIN_PASS);
+      const a = eq(String(b.phone || '').replace(/\D/g, ''), ADMIN_PHONE), c = eq(String(b.password || '').trim(), ADMIN_PASS);
       if (a && c) return sendJson(res, 200, { token: mkToken('admin'), role: 'admin' });
       addFail(ip); return sendJson(res, 401, { error: 'Wrong phone number or password' });
     }
