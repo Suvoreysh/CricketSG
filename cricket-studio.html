@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cricket Live Studio</title>
+<style>
+:root{--bg:#0a0f1f;--p:#121a33;--p2:#1a2547;--ln:#2a3665;--tx:#e9edff;--mu:#8e99c9;--ac:#22c55e;--rd:#ef4444;--bl:#3b82f6;--am:#f59e0b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.4 system-ui,"Segoe UI",Roboto,sans-serif}
+button,select,input,textarea{font:inherit;color:var(--tx);background:var(--p2);border:1px solid var(--ln);border-radius:8px;padding:7px 11px}
+button{cursor:pointer}button:hover{border-color:var(--bl)}button.on{background:var(--bl);border-color:var(--bl)}
+button.pri{background:var(--ac);border-color:var(--ac);color:#04210f;font-weight:700}
+button.red{background:var(--rd);border-color:var(--rd);font-weight:700}
+button:disabled{opacity:.4;cursor:not-allowed}
+textarea{width:100%;min-height:150px}input,select{max-width:100%}
+header.top{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:#070b17;border-bottom:1px solid var(--ln);position:sticky;top:0;z-index:5}
+.brand{font-weight:800;letter-spacing:.5px}.brand i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--rd);margin-right:8px;animation:pl 1.4s infinite}
+@keyframes pl{50%{opacity:.25}}
+nav{display:flex;gap:6px;flex-wrap:wrap;flex:1}nav button{border-radius:999px}
+.badge{padding:3px 10px;border-radius:999px;background:#333a5c;font-weight:700;font-size:12px}.badge.live{background:var(--rd)}
+main{padding:14px;max-width:1500px;margin:auto}.tab{display:none}.tab.on{display:block}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.split{display:grid;grid-template-columns:1.15fr .85fr;gap:14px}
+@media(max-width:1000px){.grid2,.split{grid-template-columns:1fr}}
+.panel,.card{background:var(--p);border:1px solid var(--ln);border-radius:12px;padding:12px}
+.panel h3{margin:0 0 8px;font-size:12px;letter-spacing:1.2px;color:var(--mu)}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.card .row,.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.bar{display:flex;gap:10px;align-items:center;margin-bottom:12px}.bar h2{margin:0;flex:1}
+.mu{color:var(--mu)}.chip{padding:2px 9px;border-radius:999px;background:var(--p2);border:1px solid var(--ln);font-size:12px}
+.chip.live{background:var(--rd);border-color:var(--rd)}.chip.done{background:#1f6b3a}
+canvas.mon{width:100%;aspect-ratio:16/9;background:#000;border-radius:8px;display:block}
+.cams{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}@media(max-width:800px){.cams{grid-template-columns:1fr 1fr}}
+.tile{border:2px solid var(--ln);border-radius:10px;padding:6px;background:var(--p2)}.tile.pgm{border-color:var(--rd)}
+.tile canvas{width:100%;aspect-ratio:16/9;background:#000;border-radius:6px;display:block;cursor:pointer}
+.tile .row{margin:5px 0 0}.tile select{flex:1;min-width:0;padding:4px}
+input[type=range]{width:100%;padding:0}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.pad button{min-width:46px;font-weight:700}.pad .n4{background:#1d4ed8}.pad .n6{background:#7c3aed}.pad .w{background:var(--rd)}.pad .x{background:#92400e}
+.score{font-size:34px;font-weight:800}.score small{font-size:16px;color:var(--mu);font-weight:600}
+.balls{display:flex;gap:5px;flex-wrap:wrap}
+.b{min-width:30px;height:30px;border-radius:50%;padding:0;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.b.c{outline:2px solid var(--am)}.b.w{background:var(--rd)}.b.f{background:#1d4ed8}.b.s{background:#7c3aed}.b.e{background:#92400e}
+table{width:100%;border-collapse:collapse;margin:6px 0}th,td{padding:5px 7px;text-align:right;border-bottom:1px solid var(--ln)}th:first-child,td:first-child{text-align:left}th{color:var(--mu);font-size:12px}
+dialog{background:var(--p);color:var(--tx);border:1px solid var(--ln);border-radius:14px;max-width:460px;width:92%}dialog::backdrop{background:#000a}
+dialog label{display:block;margin:8px 0 3px;color:var(--mu);font-size:12px}dialog input,dialog select{width:100%}
+.pulse{animation:pu 1s infinite}@keyframes pu{50%{box-shadow:0 0 0 4px #f59e0b88}}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#000d;padding:9px 16px;border-radius:999px;display:none;z-index:50;border:1px solid var(--ln)}
+iframe{width:100%;min-height:420px;border:0;border-radius:10px;background:#000}
+pre{background:#05080f;padding:8px;border-radius:8px;max-height:140px;overflow:auto;margin:6px 0}
+kbd{background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:0 5px;font-size:11px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><i></i>CRICKET LIVE STUDIO</div>
+  <nav id="tabs">
+    <button data-tab="matches" class="on">Matches</button><button data-tab="teams">Teams</button>
+    <button data-tab="console">Live Console</button><button data-tab="card">Scorecard</button>
+    <button data-tab="fb">Facebook Live</button><button data-tab="view">Viewer</button>
+  </nav>
+  <span id="liveBadge" class="badge">OFFLINE</span>
+</header>
+<main>
+
+<section id="t-matches" class="tab on">
+  <div class="bar"><h2>Matches</h2><button class="pri" id="newMatchBtn">＋ New match</button></div>
+  <div id="matchList" class="cards"></div>
+</section>
+
+<section id="t-teams" class="tab">
+  <div class="bar"><h2>Teams</h2><button id="sampleBtn">Add sample teams</button><button class="pri" id="newTeamBtn">＋ Create team</button></div>
+  <div id="teamList" class="cards"></div>
+</section>
+
+<section id="t-console" class="tab">
+  <div class="grid2">
+    <div class="panel"><h3>PROGRAM (what goes to Facebook) <span id="pgmInfo"></span></h3><canvas id="pgm" class="mon" width="1280" height="720"></canvas></div>
+    <div class="panel"><h3>REPLAY / DECISION REVIEW <span id="rpInfo"></span></h3>
+      <canvas id="rc" class="mon" width="1280" height="720" title="Click to set zoom focus"></canvas>
+      <input type="range" id="scrub" min="0" max="1000" value="0">
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:14px"><h3>CAMERAS — click a tile to cut to it (keys 1-4)</h3><div id="cams" class="cams"></div>
+    <div class="row"><button id="scanBtn">Scan camera devices</button><span class="mu">Webcam / phone-as-webcam / OBS virtual cam / screen / video file. Demo feeds work without hardware.</span></div></div>
+  <div class="split">
+    <div>
+      <div class="panel" id="rpCtl"><h3>REPLAY CONTROLS</h3>
+        <div class="row"><b>Last N sec:</b><span class="btns" id="instBtns"><button data-sec="5">5s</button><button data-sec="10">10s</button><button data-sec="15">15s</button><button data-sec="30">30s</button></span>
+          <button id="drsBtn" class="red">DRS: last ball slow-mo</button></div>
+        <div class="row"><b>Angle:</b><span class="btns" id="angBtns"><button data-ang="0">Cam 1</button><button data-ang="1">Cam 2</button><button data-ang="2">Cam 3</button><button data-ang="3">Cam 4</button><button data-ang="q">Quad</button></span></div>
+        <div class="row"><b>Speed:</b><span class="btns" id="spdBtns"><button data-spd=".1">0.1×</button><button data-spd=".25">0.25×</button><button data-spd=".5">0.5×</button><button data-spd="1">1× (undo slow-mo)</button></span></div>
+        <div class="row"><b>Zoom:</b><span class="btns" id="zmBtns"><button data-z="1">1×</button><button data-z="2">2×</button><button data-z="3">3×</button><button data-z="4">4×</button></span></div>
+        <div class="row"><button id="back5">⏪ 5s</button><button id="fPrev">◀ frame</button><button id="playBtn">⏸</button><button id="fNext">frame ▶</button>
+          <button id="airBtn">REPLAY → AIR</button><button id="liveBtn" class="pri">LIVE</button></div>
+        <div class="row"><label><input type="checkbox" id="loopC" checked> loop</label><label><input type="checkbox" id="blendC" checked> smooth slow-mo</label>
+          <label><input type="checkbox" id="autoLive" checked> auto back to live</label></div>
+        <div class="row"><label>Auto replay on 4 / 6 / wicket
+          <select id="autoSel"><option value="off">Off</option><option value="preview">Preview only</option><option value="air">Put on air</option></select></label>
+          <label>Ball clip <select id="clipLen"><option>5</option><option>8</option><option>10</option></select> s</label>
+          <label>Keep clips <select id="keepSel"><option value="30">30 balls</option><option value="60">60 balls</option><option value="120">120 balls</option><option value="999">all</option></select></label>
+          <label>Buffer <select id="bufSel"><option value="30">30s</option><option value="60">60s</option><option value="120">120s</option></select></label></div>
+        <div class="mu">Keys: <kbd>1-4</kbd> cut · <kbd>R</kbd> replay 10s · <kbd>Space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> frame · <kbd>[</kbd><kbd>]</kbd> speed · <kbd>A</kbd> air · <kbd>L</kbd> live · <kbd>Ctrl+Z</kbd> undo ball</div>
+      </div>
+    </div>
+    <div>
+      <div class="panel pad" id="pad"></div>
+      <div class="panel" style="margin-top:14px"><h3>LAST BALLS — every ball has a saved clip (🎬 outline). Click to replay slow-mo</h3><div id="recent"></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="t-card" class="tab"><div id="cardWrap"></div></section>
+
+<section id="t-fb" class="tab">
+  <div class="grid2">
+    <div class="panel"><h3>GO LIVE TO FACEBOOK (program feed incl. score overlay + replays)</h3>
+      <p class="mu">1. Open <a style="color:#7aa2ff" target="_blank" rel="noopener" href="https://www.facebook.com/live/producer">Facebook Live Producer</a> → “Streaming software” → copy the <b>stream key</b>.<br>
+      2. Run <code>node cricket-relay.js</code> (needs ffmpeg) and open this page from <code>http://localhost:8080</code>.<br>3. Paste key, press Go Live.</p>
+      <label class="mu">Relay URL</label><input id="relayUrl" style="width:100%">
+      <label class="mu">Stream key (kept in memory only)</label><input id="skey" type="password" style="width:100%" autocomplete="off">
+      <div class="row"><label><input type="checkbox" id="micC" checked> commentary mic</label></div>
+      <div class="row"><button class="pri" id="goLive">● Go Live</button><button id="endLive" disabled>End stream</button><span id="fbSt" class="mu">idle</span></div>
+      <pre id="fbLog"></pre>
+    </div>
+    <div class="panel"><h3>WATCH A FACEBOOK LIVE VIDEO</h3>
+      <div class="row"><input id="fbUrl" style="flex:1" placeholder="https://www.facebook.com/…/videos/123456789"><button id="fbLoad">Load</button></div>
+      <div id="fbEmbed"></div>
+    </div>
+  </div>
+</section>
+
+<section id="t-view" class="tab">
+  <div class="grid2">
+    <div class="panel"><h3>LIVE VIDEO</h3><div id="fbEmbed2" class="mu">Load a Facebook live URL in the Facebook Live tab.</div></div>
+    <div class="panel"><h3>LIVE SCORE</h3><div id="viewCard"></div></div>
+  </div>
+</section>
+</main>
+
+<!-- dialogs -->
+<dialog id="dTeam"><form id="fTeam"><h3 id="dTeamH">Create team</h3><input type="hidden" id="tid">
+  <label>Team name</label><input id="tname" required><label>Short name (3-4 letters)</label><input id="tshort" maxlength="4">
+  <label>Players — one per line, batting order (min 2)</label><textarea id="tplayers"></textarea>
+  <div class="row"><button class="pri">Save</button><button type="button" data-close>Cancel</button></div></form></dialog>
+
+<dialog id="dMatch"><form id="fMatch"><h3>New match</h3>
+  <label>Title (optional)</label><input id="mtitle" placeholder="Sunday League – Match 5">
+  <label>Team A</label><select id="mA"></select><label>Team B</label><select id="mB"></select>
+  <label>Overs per innings</label><input id="mOv" type="number" min="1" max="50" value="20">
+  <label>Venue</label><input id="mVenue"><label>Date &amp; time</label><input id="mDate" type="datetime-local">
+  <label>Toss won by</label><select id="mToss"></select><label>Elected to</label><select id="mElect"><option value="bat">Bat</option><option value="bowl">Bowl</option></select>
+  <div class="row"><button class="pri">Create match</button><button type="button" data-close>Cancel</button></div></form></dialog>
+
+<dialog id="dStart"><form id="fStart"><h3 id="dStartH">Start innings</h3>
+  <label>Striker</label><select id="sSt"></select><label>Non-striker</label><select id="sNs"></select><label>Opening bowler</label><select id="sBw"></select>
+  <div class="row"><button class="pri">Start</button><button type="button" data-close>Cancel</button></div></form></dialog>
+
+<dialog id="dWkt"><form id="fWkt"><h3>Wicket</h3>
+  <label>How out</label><select id="wHow"><option>bowled</option><option>caught</option><option>lbw</option><option>stumped</option><option>run out</option><option>hit wicket</option></select>
+  <label>New batter</label><select id="wNew"></select>
+  <div class="row"><button class="red">Confirm wicket</button><button type="button" data-close>Cancel</button></div></form></dialog>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   Cricket Live Studio — teams, matches, live scoring (undo/redo),
+   multi-camera replay buffer, per-ball 5s clips, slow-mo, Facebook relay
+   ========================================================= */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const PW=1280,PH=720,CW=768,CH=432,NC=4,FPS=20;
+const ovs=b=>Math.floor(b/6)+'.'+b%6;
+let toastT;const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',2600)};
+
+/* ---------- storage ---------- */
+let DB;try{DB=JSON.parse(localStorage.getItem('cls3'))}catch(e){}
+DB=DB||{teams:[],matches:[],cur:null,cfg:{}};
+const CFG=Object.assign({auto:'preview',clipLen:5,keep:60,buf:60,autoLive:true},DB.cfg);DB.cfg=CFG;
+const save=()=>{try{localStorage.setItem('cls3',JSON.stringify(DB))}catch(e){toast('Storage full')}};
+const cm=()=>DB.matches.find(m=>m.id===DB.cur);
+const uniq=a=>{const seen={};return a.map(n=>{let k=n,i=1;while(seen[k])k=n+' '+(++i);seen[k]=1;return k})};
+
+/* ---------- IndexedDB: per-ball clips ---------- */
+const idb=new Promise((ok,no)=>{const r=indexedDB.open('cls-clips',1);r.onupgradeneeded=()=>r.result.createObjectStore('clips');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const tx=async(mode,fn)=>{const d=await idb;return new Promise((ok,no)=>{const t=d.transaction('clips',mode);const rq=fn(t.objectStore('clips'));t.oncomplete=()=>ok(rq&&rq.result);t.onerror=()=>no(t.error)})};
+const clipPut=(k,v)=>tx('readwrite',s=>s.put(v,k)),clipGet=k=>tx('readonly',s=>s.get(k)),clipDel=k=>tx('readwrite',s=>s.delete(k));
+const range=id=>IDBKeyRange.bound(id+':',id+':￿');
+const clipDelMatch=id=>tx('readwrite',s=>s.delete(range(id)));
+let clipSet=new Set();
+async function loadClipSet(){const m=cm();clipSet=new Set();if(!m)return;try{(await tx('readonly',s=>s.getAllKeys(range(m.id)))).forEach(k=>clipSet.add(k))}catch(e){}refresh()}
+const ck=(m,id)=>m.id+':'+id;
+
+/* ---------- tabs / dialogs / delegation ---------- */
+let tab='matches';
+function gotoTab(t){tab=t;$$('.tab').forEach(e=>e.classList.toggle('on',e.id==='t-'+t));$$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  if(t==='matches')renderMatches();if(t==='teams')renderTeams();if(t==='card')renderCard();if(t==='view')renderView()}
+$('#tabs').onclick=e=>{const b=e.target.closest('button');if(b)gotoTab(b.dataset.tab)};
+document.addEventListener('click',e=>{if(e.target.matches('[data-close]'))e.target.closest('dialog').close();
+  const b=e.target.closest('[data-act]');if(b&&acts[b.dataset.act])acts[b.dataset.act](b.dataset)});
+
+/* ---------- teams ---------- */
+function renderTeams(){
+  $('#teamList').innerHTML=DB.teams.length?DB.teams.map(t=>`<div class="card"><div class="row"><b style="flex:1">${esc(t.name)}</b><span class="chip">${esc(t.short)}</span></div>
+  <div class="mu">${t.players.length} players: ${esc(t.players.slice(0,6).join(', '))}${t.players.length>6?'…':''}</div>
+  <div class="row"><button data-act="editTeam" data-id="${t.id}">Edit</button><button data-act="delTeam" data-id="${t.id}">Delete</button></div></div>`).join('')
+  :'<p class="mu">No teams yet. Create a team with its players, or add the sample teams.</p>'}
+function openTeam(t){$('#dTeamH').textContent=t?'Edit team':'Create team';$('#tid').value=t?t.id:'';$('#tname').value=t?t.name:'';$('#tshort').value=t?t.short:'';$('#tplayers').value=t?t.players.join('\n'):'';$('#dTeam').showModal()}
+$('#newTeamBtn').onclick=()=>openTeam();
+$('#fTeam').onsubmit=e=>{e.preventDefault();const name=$('#tname').value.trim(),pl=uniq($('#tplayers').value.split('\n').map(s=>s.trim()).filter(Boolean));
+  if(!name||pl.length<2)return toast('Team name and at least 2 players required');
+  const short=($('#tshort').value.trim()||name.slice(0,3)).toUpperCase(),id=$('#tid').value;
+  if(id){Object.assign(DB.teams.find(t=>t.id===id),{name,short,players:pl})}else DB.teams.push({id:uid(),name,short,players:pl});
+  save();$('#dTeam').close();renderTeams()};
+$('#sampleBtn').onclick=()=>{const mk=(n,s,p)=>({id:uid(),name:n,short:s,players:Array.from({length:11},(_,i)=>p+' Player '+(i+1))});
+  DB.teams.push(mk('Kolkata Knights','KKN','KKN'),mk('Siliguri Strikers','SST','SST'));save();renderTeams()};
+
+/* ---------- matches ---------- */
+function renderMatches(){
+  $('#matchList').innerHTML=DB.matches.length?DB.matches.slice().reverse().map(m=>{const S=m.S,I=S&&S.inns[S.cur];
+  const sc=S?S.inns.map(i=>`${esc(m.t[i.bat].short)} ${i.runs}/${i.wk} (${ovs(i.balls)})`).join(' · '):'';
+  return `<div class="card"><div class="row"><b style="flex:1">${esc(m.title||m.t[0].name+' vs '+m.t[1].name)}</b><span class="chip ${m.status==='live'?'live':m.status==='done'?'done':''}">${m.status.toUpperCase()}</span></div>
+  <div>${esc(m.t[0].name)} <span class="mu">vs</span> ${esc(m.t[1].name)}</div>
+  <div class="mu">${m.overs} overs · ${esc(m.venue||'Venue TBD')} · ${m.date?new Date(m.date).toLocaleString():'Date TBD'}</div>
+  <div class="mu">Toss: ${esc(m.t[m.toss.win].name)} chose to ${m.toss.elect}</div>
+  <div>${sc}</div><div class="mu">${esc((S&&S.result)||'')}</div>
+  <div class="row">${m.status==='upcoming'?`<button class="pri" data-act="startMatch" data-id="${m.id}">Start scoring</button>`:`<button class="pri" data-act="openMatch" data-id="${m.id}">${m.status==='live'?'Open live console':'View'}</button>`}
+  <button data-act="delMatch" data-id="${m.id}">Delete</button></div></div>`}).join('')
+  :'<p class="mu">No matches yet. Create teams first, then set up a match.</p>'}
+$('#newMatchBtn').onclick=()=>{if(DB.teams.length<2){toast('Create at least 2 teams first');return gotoTab('teams')}
+  const o=DB.teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');$('#mA').innerHTML=o;$('#mB').innerHTML=o;$('#mB').selectedIndex=1;fillToss();$('#dMatch').showModal()};
+function fillToss(){const a=DB.teams.find(t=>t.id===$('#mA').value),b=DB.teams.find(t=>t.id===$('#mB').value);$('#mToss').innerHTML=`<option value="0">${esc(a.name)}</option><option value="1">${esc(b.name)}</option>`}
+$('#mA').onchange=$('#mB').onchange=fillToss;
+$('#fMatch').onsubmit=e=>{e.preventDefault();const a=DB.teams.find(t=>t.id===$('#mA').value),b=DB.teams.find(t=>t.id===$('#mB').value);
+  if(a.id===b.id)return toast('Pick two different teams');
+  const snap=t=>({name:t.name,short:t.short,players:t.players.slice()});
+  DB.matches.push({id:uid(),title:$('#mtitle').value.trim(),t:[snap(a),snap(b)],overs:Math.max(1,+$('#mOv').value||20),venue:$('#mVenue').value.trim(),date:$('#mDate').value,
+    toss:{win:+$('#mToss').value,elect:$('#mElect').value},status:'upcoming',S:null});
+  save();$('#dMatch').close();renderMatches()};
+
+/* innings start dialog (openers + bowler) */
+let startCtx=null;
+function openStart(m,idx,bat){startCtx={m,idx,bat};const pl=m.t[bat].players,bo=m.t[1-bat].players;
+  const o=a=>a.map(n=>`<option>${esc(n)}</option>`).join('');
+  $('#sSt').innerHTML=o(pl);$('#sNs').innerHTML=o(pl);$('#sNs').selectedIndex=1;$('#sBw').innerHTML=o(bo);$('#sBw').selectedIndex=bo.length-1;
+  $('#dStartH').textContent=(idx?'2nd':'1st')+' innings — '+m.t[bat].name+' batting';$('#dStart').showModal()}
+$('#fStart').onsubmit=e=>{e.preventDefault();const {m,idx,bat}=startCtx,st=$('#sSt').value,ns=$('#sNs').value,bw=$('#sBw').value;
+  if(st===ns)return toast('Striker and non-striker must differ');
+  const nb=()=>({r:0,b:0,f:0,s:0,out:''});
+  const I={idx,bat,runs:0,wk:0,balls:0,ex:{wd:0,nb:0,b:0,lb:0},bt:{[st]:nb(),[ns]:nb()},order:[st,ns],st,ns,bw,bl:{},fow:[],over:[],ev:[],seq:0,done:false,needBw:false};
+  if(!m.S)m.S={cur:0,inns:[],result:''};else m.S.cur=idx;m.S.inns[idx]=I;m.status='live';DB.cur=m.id;save();$('#dStart').close();
+  UN[m.id]=UN[m.id]||{u:[],r:[]};loadClipSet();gotoTab('console');refresh()};
+
+const acts={
+  editTeam:d=>openTeam(DB.teams.find(t=>t.id===d.id)),
+  delTeam:d=>{if(confirm('Delete this team? Existing matches keep their own copy.')){DB.teams=DB.teams.filter(t=>t.id!==d.id);save();renderTeams()}},
+  startMatch:d=>{const m=DB.matches.find(x=>x.id===d.id);openStart(m,0,m.toss.elect==='bat'?m.toss.win:1-m.toss.win)},
+  openMatch:d=>{DB.cur=d.id;save();loadClipSet();gotoTab(cm().status==='live'?'console':'card')},
+  delMatch:d=>{if(confirm('Delete this match and its saved ball clips?')){DB.matches=DB.matches.filter(x=>x.id!==d.id);clipDelMatch(d.id);if(DB.cur===d.id)DB.cur=null;save();renderMatches();refresh()}},
+  run:d=>score('run',+d.n),ex:d=>score(d.k,+($('#xr')||{value:0}).value),wk:()=>openWkt(),swap:()=>{const m=cm();if(!m||!m.S)return;snap(m);const I=m.S.inns[m.S.cur];[I.st,I.ns]=[I.ns,I.st];refresh()},
+  undo:()=>undo(),redo:()=>redo(),nextInn:()=>{const m=cm();openStart(m,1,1-m.S.inns[0].bat)},
+  endInn:()=>{const m=cm(),I=m.S.inns[m.S.cur];if(!confirm('End this innings now?'))return;snap(m);I.done=true;if(m.S.cur===1){m.status='done';m.S.result=resultText(m)}refresh()},
+  ball:d=>playBall(d.id,{}),
+  over:d=>{const m=cm(),I=m.S.inns[+d.i];const ids=I.ev.filter(e=>e.o===+d.o&&clipSet.has(ck(m,e.id))).map(e=>e.id);if(!ids.length)return toast('No clips for this over');
+    R.queue=ids.slice(1);playBall(ids[0],{q:1})},
+  cardInn:d=>{cardInn=+d.i;renderCard()}
+};
+
+/* ---------- cricket engine ---------- */
+const UN={};
+const snapStr=m=>JSON.stringify({S:m.S,status:m.status});
+function snap(m){const u=UN[m.id]=UN[m.id]||{u:[],r:[]};u.u.push(snapStr(m));if(u.u.length>400)u.u.shift();u.r=[]}
+function restore(m,s){const o=JSON.parse(s);m.S=o.S;m.status=o.status}
+function undo(){const m=cm();if(!m||!m.S)return;const u=UN[m.id];if(!u||!u.u.length)return toast('Nothing to undo');u.r.push(snapStr(m));restore(m,u.u.pop());toast('Last action undone');refresh()}
+function redo(){const m=cm();if(!m||!m.S)return;const u=UN[m.id];if(!u||!u.r.length)return toast('Nothing to redo');u.u.push(snapStr(m));restore(m,u.r.pop());refresh()}
+const inn=m=>m.S.inns[m.S.cur];
+function pushEv(I,e){e.id=I.idx+'-'+(++I.seq);I.ev.push(e);return e}
+function score(kind,n=0){
+  const m=cm();if(!m||!m.S||m.status!=='live')return toast('Start a match first');const I=inn(m);if(I.done)return toast('Innings is over');
+  snap(m);const B=I.bt[I.st],K=I.bl[I.bw]||(I.bl[I.bw]={b:0,r:0,w:0,wd:0,nb:0}),before=I.balls;let legal=true,tot=0,lab='',txt='';
+  if(kind==='run'){B.r+=n;B.b++;if(n===4)B.f++;if(n===6)B.s++;I.runs+=n;K.r+=n;K.b++;tot=n;lab=String(n);txt=n===4?'FOUR':n===6?'SIX':n?n+' run'+(n>1?'s':''):'no run'}
+  else if(kind==='wd'){tot=1+n;I.runs+=tot;I.ex.wd+=tot;K.r+=tot;K.wd+=tot;legal=false;lab='Wd'+(n?'+'+n:'');txt='wide'+(n?' + '+n:'')}
+  else if(kind==='nb'){tot=1+n;I.runs+=tot;I.ex.nb++;B.r+=n;B.b++;if(n===4)B.f++;if(n===6)B.s++;K.r+=tot;K.nb++;legal=false;lab='Nb'+(n?'+'+n:'');txt='no ball'+(n?', '+n+' off the bat':'')}
+  else{tot=n;I.runs+=n;I.ex[kind]+=n;B.b++;K.b++;lab=(kind==='b'?'B':'LB')+n;txt=(kind==='b'?'bye ':'leg bye ')+n}
+  if(legal)I.balls++;
+  const ev=pushEv(I,{o:Math.floor(before/6),k:Math.floor(before/6)+'.'+(legal?before%6+1:before%6+'+'),lab,tot,w:false,bt:I.st,bw:I.bw,txt,bound:(kind==='run'||kind==='nb')&&(n===4||n===6)});
+  if(n%2)[I.st,I.ns]=[I.ns,I.st];
+  afterBall(m,I,legal,ev)}
+function afterBall(m,I,legal,ev){
+  if(legal&&I.balls%6===0){[I.st,I.ns]=[I.ns,I.st];I.needBw=true}
+  const S=m.S,n=m.t[I.bat].players.length-1,tgt=S.cur===1?S.inns[0].runs+1:0;
+  if(I.wk>=n||I.balls>=m.overs*6||(tgt&&I.runs>=tgt)){I.done=true;I.needBw=false;if(S.cur===1){m.status='done';S.result=resultText(m)}}
+  queueClip(m,ev);
+  if(CFG.auto!=='off'&&(ev.bound||ev.w))setTimeout(()=>playBall(ev.id,{air:CFG.auto==='air'}),1000+1400);
+  refresh()}
+function resultText(m){const a=m.S.inns[0],b=m.S.inns[1],A=m.t[a.bat].name,B=m.t[b.bat].name;
+  if(b.runs>a.runs)return B+' won by '+(m.t[b.bat].players.length-1-b.wk)+' wicket(s)';if(a.runs>b.runs)return A+' won by '+(a.runs-b.runs)+' run(s)';return 'Match tied'}
+function openWkt(){const m=cm();if(!m||!m.S||m.status!=='live')return toast('Start a match first');const I=inn(m);if(I.done)return;
+  const left=m.t[I.bat].players.filter(p=>!I.order.includes(p));$('#wNew').innerHTML=left.length?left.map(p=>`<option>${esc(p)}</option>`).join(''):'<option value="">— no more batters —</option>';$('#dWkt').showModal()}
+$('#fWkt').onsubmit=e=>{e.preventDefault();$('#dWkt').close();const m=cm(),I=inn(m),how=$('#wHow').value,nn=$('#wNew').value;
+  snap(m);const B=I.bt[I.st],K=I.bl[I.bw]||(I.bl[I.bw]={b:0,r:0,w:0,wd:0,nb:0}),before=I.balls;
+  B.b++;K.b++;I.balls++;I.wk++;const cred=how!=='run out';if(cred)K.w++;B.out=how+(cred?' b '+I.bw:'');
+  I.fow.push({s:I.runs,w:I.wk,n:I.st,o:ovs(I.balls)});
+  const ev=pushEv(I,{o:Math.floor(before/6),k:Math.floor(before/6)+'.'+(before%6+1),lab:'W',tot:0,w:true,bt:I.st,bw:I.bw,txt:'OUT! '+I.st+' '+B.out});
+  if(nn&&I.wk<m.t[I.bat].players.length-1){I.order.push(nn);I.bt[nn]={r:0,b:0,f:0,s:0,out:''};I.st=nn}
+  afterBall(m,I,true,ev)};
+
+/* ---------- pad / lists ---------- */
+let xrVal=0;
+function renderPad(){
+  const m=cm(),pad=$('#pad');
+  if(!m||!m.S){pad.innerHTML='<h3>SCORING</h3><p class="mu">Open or start a match in the Matches tab to score live.</p>';$('#recent').innerHTML='';return}
+  const S=m.S,I=inn(m),T=m.t[I.bat],bo=m.t[1-I.bat].players,tgt=S.cur===1?S.inns[0].runs+1:0,left=m.overs*6-I.balls;
+  const crr=I.balls?(I.runs*6/I.balls).toFixed(2):'0.00';
+  const bt=n=>{const b=I.bt[n];return `<tr><td>${n===I.st?'🏏 ':''}${esc(n)}${n===I.st?'*':''}</td><td>${b.r}</td><td>${b.b}</td><td>${b.f}/${b.s}</td></tr>`};
+  const K=I.bl[I.bw]||{b:0,r:0,w:0};
+  pad.innerHTML=`<h3>LIVE SCORING — ${esc(m.t[0].short)} v ${esc(m.t[1].short)}</h3>
+  <div class="score">${esc(T.short)} ${I.runs}/${I.wk} <small>(${ovs(I.balls)}/${m.overs}) CRR ${crr}</small></div>
+  <div class="mu">${tgt?`Target ${tgt} · need ${Math.max(0,tgt-I.runs)} off ${left} balls`:'1st innings'} ${S.result?'· <b>'+esc(S.result)+'</b>':''}</div>
+  <table><tr><th>Batting</th><th>R</th><th>B</th><th>4/6</th></tr>${bt(I.st)}${bt(I.ns)}</table>
+  <div class="row"><b>Bowler</b><select id="bwSel" class="${I.needBw?'pulse':''}">${bo.map(p=>`<option ${p===I.bw?'selected':''}>${esc(p)}</option>`).join('')}</select>
+   <span class="mu">${K.w}-${K.r} (${ovs(K.b)})</span>${I.needBw?'<span class="chip live">pick next bowler</span>':''}</div>
+  <div class="balls" style="margin:6px 0">${I.ev.filter(e=>e.o===Math.floor(I.balls/6)).map(chip(m)).join('')}</div>
+  ${I.done?`<div class="row">${S.cur===0?'<button class="pri" data-act="nextInn">Start 2nd innings</button>':'<b>Match complete</b>'}</div>`:''}
+  <div class="btns">${[0,1,2,3,4,6].map(n=>`<button class="${n===4?'n4':n===6?'n6':''}" data-act="run" data-n="${n}" ${I.done?'disabled':''}>${n}</button>`).join('')}<button class="w" data-act="wk" ${I.done?'disabled':''}>W</button></div>
+  <div class="btns"><button class="x" data-act="ex" data-k="wd">Wd</button><button class="x" data-act="ex" data-k="nb">Nb</button><button class="x" data-act="ex" data-k="b">Bye</button><button class="x" data-act="ex" data-k="lb">LB</button>
+   <label class="mu">+runs <select id="xr">${[0,1,2,3,4,5,6].map(n=>`<option ${n===xrVal?'selected':''}>${n}</option>`).join('')}</select></label></div>
+  <div class="btns"><button data-act="swap">⇄ Swap strike</button><button class="red" data-act="undo">↶ Undo wrong score</button><button data-act="redo">↷ Redo</button><button data-act="endInn">End innings</button></div>`;
+  $('#recent').innerHTML=I.ev.slice(-14).map(chip(m,I.idx)).join('')||'<span class="mu">No balls yet</span>'}
+const chip=(m)=>e=>`<button class="b ${e.w?'w':e.bound?(e.tot===6?'s':'f'):/^(Wd|Nb|B|LB)/.test(e.lab)?'e':''} ${clipSet.has(ck(m,e.id))?'c':''}" data-act="ball" data-id="${e.id}" title="Over ${e.k}: ${esc(e.bw)} to ${esc(e.bt)} — ${esc(e.txt)}">${esc(e.lab)}</button>`;
+document.addEventListener('change',e=>{
+  if(e.target.id==='bwSel'){const m=cm(),I=inn(m);snap(m);I.bw=e.target.value;I.needBw=false;refresh()}
+  if(e.target.id==='xr')xrVal=+e.target.value});
+
+/* ---------- scorecard ---------- */
+let cardInn=0;
+function cardHTML(m,idx,withClips){
+  if(!m||!m.S)return '<p class="mu">Match not started.</p>';const I=m.S.inns[idx];if(!I)return '<p class="mu">Innings not started.</p>';
+  const T=m.t[I.bat],Bw=m.t[1-I.bat];
+  const rows=I.order.map(n=>{const b=I.bt[n],live=!b.out&&!I.done&&(n===I.st||n===I.ns);return `<tr><td>${esc(n)}${n===I.st&&!I.done?'*':''}<div class="mu" style="font-size:11px">${b.out?esc(b.out):live||(!b.out)?'not out':''}</div></td><td><b>${b.r}</b></td><td>${b.b}</td><td>${b.f}</td><td>${b.s}</td><td>${b.b?(b.r*100/b.b).toFixed(0):'-'}</td></tr>`}).join('');
+  const dnb=T.players.filter(p=>!I.order.includes(p));const ex=I.ex,exT=ex.wd+ex.nb+ex.b+ex.lb;
+  const bl=Object.entries(I.bl).map(([n,k])=>`<tr><td>${esc(n)}</td><td>${ovs(k.b)}</td><td>${k.r}</td><td>${k.w}</td><td>${k.wd}</td><td>${k.nb}</td><td>${k.b?(k.r*6/k.b).toFixed(1):'-'}</td></tr>`).join('');
+  const overs=[...new Set(I.ev.map(e=>e.o))].map(o=>{const es=I.ev.filter(e=>e.o===o);return `<div class="row"><b style="min-width:54px">Over ${o+1}</b><span class="balls">${es.map(chip(m)).join('')}</span><span class="mu">= ${es.reduce((a,e)=>a+e.tot,0)}</span>${withClips?`<button data-act="over" data-i="${idx}" data-o="${o}">▶ Play over</button>`:''}</div>`}).join('');
+  return `<div class="score">${esc(T.name)} ${I.runs}/${I.wk} <small>(${ovs(I.balls)} ov)</small></div>
+  <table><tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th><th>SR</th></tr>${rows}</table>
+  <div class="mu">Extras ${exT} (wd ${ex.wd}, nb ${ex.nb}, b ${ex.b}, lb ${ex.lb}) · Did not bat: ${esc(dnb.join(', ')||'—')}</div>
+  <div class="mu">Fall of wickets: ${I.fow.map(f=>`${f.s}-${f.w} (${esc(f.n)}, ${f.o})`).join(', ')||'—'}</div>
+  <table><tr><th>Bowler (${esc(Bw.name)})</th><th>O</th><th>R</th><th>W</th><th>Wd</th><th>Nb</th><th>Eco</th></tr>${bl}</table>
+  <h3 class="mu" style="margin:12px 0 4px">OVER BY OVER${withClips?' — 🎬 outlined balls have a saved clip':''}</h3>${overs||'<span class="mu">No balls yet</span>'}`}
+function renderCard(){const m=cm(),w=$('#cardWrap');
+  if(!m){w.innerHTML='<p class="mu">Open a match from the Matches tab.</p>';return}
+  const S=m.S;cardInn=Math.min(cardInn,S?S.inns.length-1:0);if(S&&S.cur>cardInn&&false)cardInn=S.cur;
+  w.innerHTML=`<div class="bar"><h2>${esc(m.title||m.t[0].name+' vs '+m.t[1].name)}</h2>${S?S.inns.map((i,k)=>`<button class="${k===cardInn?'on':''}" data-act="cardInn" data-i="${k}">${esc(m.t[i.bat].short)} innings</button>`).join(''):''}</div>
+  <div class="panel">${S&&S.result?`<h3>RESULT: ${esc(S.result)}</h3>`:''}${cardHTML(m,cardInn,true)}</div>`}
+function renderView(){const m=cm();$('#viewCard').innerHTML=m&&m.S?cardHTML(m,m.S.cur,false)+`<h3 class="mu">COMMENTARY</h3>`+m.S.inns[m.S.cur].ev.slice(-8).reverse().map(e=>`<div><b>${e.k}</b> ${esc(e.bw)} to ${esc(e.bt)}, ${esc(e.txt)}</div>`).join(''):'<p class="mu">No live match.</p>'}
+function refresh(){save();renderPad();if(tab==='card')renderCard();if(tab==='view')renderView();if(tab==='matches')renderMatches()}
+
+/* ---------- cameras ---------- */
+const cams=Array.from({length:NC},(_,i)=>{const cv=document.createElement('canvas');cv.width=CW;cv.height=CH;const dc=document.createElement('canvas');dc.width=CW;dc.height=CH;
+  return {id:i,kind:'demo',el:dc,demo:dc,dctx:dc.getContext('2d'),cv,cg:cv.getContext('2d'),frames:[],pend:0,stream:null}});
+let pgmCam=0;
+function sz(e){return[e.videoWidth||e.width,e.videoHeight||e.height]}
+function cover(g,src,sw,sh,x,y,w,h){const s=Math.max(w/sw,h/sh),dw=sw*s,dh=sh*s;g.save();g.beginPath();g.rect(x,y,w,h);g.clip();g.drawImage(src,x+(w-dw)/2,y+(h-dh)/2,dw,dh);g.restore()}
+const ready=c=>c.el&&(c.el.tagName!=='VIDEO'||c.el.readyState>=2);
+function drawDemo(c,t){const g=c.dctx,w=CW,h=CH,i=c.id,hue=[135,200,35,280][i];
+  for(let k=0;k<10;k++){g.fillStyle=`hsl(${hue},45%,${k%2?21:25}%)`;g.fillRect(0,k*h/10,w,h/10)}
+  g.fillStyle='#c9a66b';g.beginPath();
+  if(i===0){g.moveTo(w/2-30,40);g.lineTo(w/2+30,40);g.lineTo(w/2+80,h);g.lineTo(w/2-80,h)}else if(i===1)g.rect(w/2-26,10,52,h-20);else if(i===2)g.rect(0,h*.62,w,h*.25);else{g.moveTo(w/2-50,20);g.lineTo(w/2+50,20);g.lineTo(w/2+130,h);g.lineTo(w/2-130,h)}g.fill();
+  const p=(t%3000)/3000;let bx,by;
+  if(i===2){bx=p*w;by=h*.72-70*Math.abs(Math.sin(p*Math.PI*2.5))}else if(i===1){bx=w/2+Math.sin(p*9)*6;by=20+p*(h-40)}else{bx=w/2+(p-.5)*30;by=50+p*(h-110)-40*Math.abs(Math.sin(p*Math.PI*2))}
+  g.fillStyle='#ef4444';g.beginPath();g.arc(bx,by,9,0,7);g.fill();g.fillStyle='#fff';g.fillRect(bx-1,by-9,2,18);
+  g.fillStyle='#fff';g.font='700 22px system-ui';g.fillText('CAM '+(i+1)+' · '+['WIDE','TOP','SIDE-ON','BOWLER END'][i],16,34);
+  g.font='700 30px ui-monospace,monospace';g.fillText((t/1000).toFixed(2)+'s',16,h-18)}
+async function setSource(i,val,file){
+  const c=cams[i];if(c.stream){c.stream.getTracks().forEach(t=>t.stop());c.stream=null}
+  if(c.el&&c.el.tagName==='VIDEO'){c.el.pause();c.el.srcObject=null}
+  if(val==='off'){c.el=null;c.kind='off';return}if(val==='demo'){c.el=c.demo;c.kind='demo';return}
+  try{const v=document.createElement('video');v.muted=true;v.playsInline=true;v.loop=true;
+    if(val==='file'){v.src=URL.createObjectURL(file)}else{
+      const st=val==='screen'?await navigator.mediaDevices.getDisplayMedia({video:true}):await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:val.slice(4)},width:{ideal:1280},height:{ideal:720}}});
+      v.srcObject=st;c.stream=st;st.getVideoTracks()[0].onended=()=>{$('#src'+i).value='demo';setSource(i,'demo')}}
+    await v.play();c.el=v;c.kind='live'}
+  catch(e){toast('Camera failed: '+(e.message||e));$('#src'+i).value='demo';setSource(i,'demo')}}
+const fileIn=document.createElement('input');fileIn.type='file';fileIn.accept='video/*';let filePending=-1;
+fileIn.onchange=()=>{if(fileIn.files[0])setSource(filePending,'file',fileIn.files[0]);else{$('#src'+filePending).value='demo';setSource(filePending,'demo')}fileIn.value=''};
+let devs=[];
+async function scan(ask){try{if(ask){const s=await navigator.mediaDevices.getUserMedia({video:true});s.getTracks().forEach(t=>t.stop())}
+  devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput')}catch(e){if(ask)toast('Camera permission denied')}buildTiles()}
+function buildTiles(){
+  const keep=cams.map((c,i)=>$('#src'+i)?$('#src'+i).value:'demo');
+  $('#cams').innerHTML=cams.map((c,i)=>`<div class="tile" id="tile${i}"><canvas width="320" height="180" id="tv${i}" data-cut="${i}"></canvas><div class="row"><b>CAM ${i+1}</b>
+   <select id="src${i}" data-src="${i}"><option value="demo">Demo feed</option><option value="off">Off</option><option value="screen">Screen share</option><option value="file">Video file…</option>
+   ${devs.map((d,k)=>`<option value="dev:${d.deviceId}">${esc(d.label||'Camera '+(k+1))}</option>`).join('')}</select></div></div>`).join('');
+  cams.forEach((c,i)=>{const s=$('#src'+i);if([...s.options].some(o=>o.value===keep[i]))s.value=keep[i]});
+  $('#tile'+pgmCam).classList.add('pgm')}
+$('#cams').addEventListener('change',e=>{const i=e.target.dataset.src;if(i==null)return;if(e.target.value==='file'){filePending=+i;fileIn.click()}else setSource(+i,e.target.value)});
+$('#cams').addEventListener('click',e=>{const c=e.target.dataset.cut;if(c!=null)cut(+c)});
+$('#scanBtn').onclick=()=>scan(true);
+let fx=null;function cut(i){if(i===pgmCam)return;pgmCam=i;$$('.tile').forEach((t,k)=>t.classList.toggle('pgm',k===i));fx=performance.now()}
+
+/* ---------- frame buffer (rolling) ---------- */
+let lastCap=0;
+function capture(now){
+  if(now-lastCap<1000/FPS-2)return;lastCap=now;
+  for(const c of cams){if(!ready(c)||c.pend>2)continue;const[sw,sh]=sz(c.el);if(!sw)continue;cover(c.cg,c.el,sw,sh,0,0,CW,CH);c.pend++;
+    c.cv.toBlob(b=>{c.pend--;if(b)c.frames.push({t:now,blob:b,bmp:null,dec:false})},'image/jpeg',.62)}
+  const lim=now-CFG.buf*1000;for(const c of cams)while(c.frames.length&&c.frames[0].t<lim){const f=c.frames.shift();if(f.bmp){f.bmp.close();f.bmp=null}}}
+
+/* ---------- per-ball 5s clips ---------- */
+function queueClip(m,ev){const T=performance.now(),pre=(CFG.clipLen-1)*1000;
+  setTimeout(async()=>{const cl={t0:T-pre,t1:T+1000,cams:cams.map(c=>c.frames.filter(f=>f.t>=T-pre&&f.t<=T+1000).map(f=>({t:f.t,blob:f.blob})))};
+    if(!cl.cams.some(a=>a.length))return;
+    try{await clipPut(ck(m,ev.id),cl);clipSet.add(ck(m,ev.id));evict(m);if(cm()===m)refresh()}catch(e){toast('Clip save failed')}},1150)}
+function evict(m){if(!m.S)return;const keys=m.S.inns.flatMap(I=>I.ev.map(e=>ck(m,e.id))).filter(k=>clipSet.has(k));
+  while(keys.length>CFG.keep){const k=keys.shift();clipSet.delete(k);clipDel(k)}}
+
+/* ---------- replay engine ---------- */
+const R={active:false,clip:null,start:0,end:0,t:0,speed:.5,playing:false,mode:0,loop:true,blend:true,onAir:false,zoom:1,fx:.5,fy:.5,queue:[],doneAt:0,loading:false,label:''};
+const framesOf=i=>R.clip?R.clip.cams[i]:cams[i].frames;
+const decoded=[];
+function decode(f){if(!f||f.bmp||f.dec)return;f.dec=true;createImageBitmap(f.blob).then(b=>{f.dec=false;f.bmp=b;decoded.push(f);while(decoded.length>200){const o=decoded.shift();if(o.bmp){o.bmp.close();o.bmp=null}}}).catch(()=>f.dec=false)}
+function idxAt(a,T){let lo=0,hi=a.length-1,r=0;while(lo<=hi){const m=(lo+hi)>>1;if(a[m].t<=T){r=m;lo=m+1}else hi=m-1}return r}
+function closeClip(){if(R.clip){R.clip.cams.forEach(a=>a.forEach(f=>{if(f.bmp){f.bmp.close();f.bmp=null}}));R.clip=null}}
+function bounds(){let s=Infinity,e=-Infinity;for(let i=0;i<NC;i++){const a=framesOf(i);if(a.length){s=Math.min(s,a[0].t);e=Math.max(e,a[a.length-1].t)}}return[s,e]}
+function instant(sec){closeClip();R.queue=[];const now=performance.now();const[s,e]=bounds();if(!isFinite(s))return toast('No camera frames yet');
+  R.end=e;R.start=Math.max(s,e-sec*1000);R.t=R.start;R.playing=true;R.active=true;R.doneAt=0;R.label='LAST '+sec+'s';ui()}
+async function playBall(id,o={}){
+  const m=cm();if(!m)return false;let c;try{c=await clipGet(ck(m,id))}catch(e){}
+  if(!c){toast('No clip saved for this ball (older than "keep" limit)');return false}
+  closeClip();R.clip={cams:c.cams.map(a=>a.map(f=>({t:f.t,blob:f.blob,bmp:null,dec:false})))};
+  const[s,e]=bounds();R.start=s;R.end=e;R.t=s;R.playing=true;R.active=true;R.doneAt=0;
+  const ev=m.S.inns.flatMap(I=>I.ev).find(x=>x.id===id);R.label=ev?'BALL '+ev.k+' '+ev.lab:'BALL';
+  R.speed=o.speed||(R.speed<1?R.speed:.25);if(o.air!==undefined)R.onAir=o.air;if(!o.q){R.queue=R.queue||[]}R.loop=o.q&&R.queue.length?false:$('#loopC').checked;
+  if(tab!=='console')gotoTab('console');ui();return true}
+function live(){R.active=false;R.onAir=false;R.queue=[];closeClip();ui()}
+function stepReplay(dt,now){
+  if(R.active&&!R.playing&&R.doneAt&&!R.loop&&!R.queue.length&&!R.loading&&R.onAir&&CFG.autoLive&&now-R.doneAt>1500){R.onAir=false;R.doneAt=0;ui()}
+  if(!R.active||!R.playing)return;R.t+=dt*R.speed;
+  if(R.t>=R.end){R.t=R.end;if(R.loop)R.t=R.start;else{R.playing=false;R.doneAt=now;ui();
+    if(R.queue.length&&!R.loading){R.loading=true;playBall(R.queue.shift(),{air:R.onAir,speed:R.speed,q:1}).finally(()=>R.loading=false)}}}}
+function drawFrameAt(g,i,T,x,y,w,h){
+  const a=framesOf(i);if(!a.length)return;const k=idxAt(a,T),f0=a[k],f1=a[k+1];
+  for(let j=-2;j<=14;j++)decode(a[k+j]);
+  let src=f0.bmp;if(!src)for(let j=1;j<8&&!src;j++){const n=a[k-j];if(n&&n.bmp)src=n.bmp}
+  if(src)cover(g,src,src.width,src.height,x,y,w,h);
+  if(R.blend&&R.speed<1&&f1&&f1.bmp&&f0.bmp&&T>=f0.t){g.globalAlpha=Math.min(1,(T-f0.t)/Math.max(1,f1.t-f0.t));cover(g,f1.bmp,f1.bmp.width,f1.bmp.height,x,y,w,h);g.globalAlpha=1}}
+const rc=$('#rc'),rg=rc.getContext('2d'),pg=$('#pgm'),pgc=pg.getContext('2d');
+function drawReplay(){
+  rg.fillStyle='#05070f';rg.fillRect(0,0,PW,PH);
+  if(!R.active){rg.fillStyle='#8e99c9';rg.font='600 30px system-ui';rg.textAlign='center';rg.fillText('REPLAY IDLE',PW/2,PH/2-10);rg.font='20px system-ui';rg.fillText('Press R for last 10s, or click any ball chip for its saved 5s clip',PW/2,PH/2+26);rg.textAlign='left';return}
+  if(R.mode==='q'){const w=PW/2,h=PH/2;for(let i=0;i<NC;i++){drawFrameAt(rg,i,R.t,(i%2)*w,Math.floor(i/2)*h,w,h);rg.fillStyle='#fff';rg.font='700 18px system-ui';rg.fillText('CAM '+(i+1),(i%2)*w+12,Math.floor(i/2)*h+26)}}
+  else{rg.save();if(R.zoom>1){const z=R.zoom,fx=Math.min(1-.5/z,Math.max(.5/z,R.fx)),fy=Math.min(1-.5/z,Math.max(.5/z,R.fy));rg.translate(PW/2,PH/2);rg.scale(z,z);rg.translate(-fx*PW,-fy*PH)}
+    drawFrameAt(rg,+R.mode,R.t,0,0,PW,PH);rg.restore()}
+  rg.fillStyle='#ef4444';rg.fillRect(PW-380,24,356,44);rg.fillStyle='#fff';rg.font='800 22px system-ui';
+  rg.fillText('REPLAY '+(R.speed<1?'SLOW-MO ':'')+R.speed+'×'+(R.zoom>1?' ·'+R.zoom+'× ZOOM':''),PW-368,54);
+  if(R.label){rg.fillStyle='#000a';rg.fillRect(24,24,300,40);rg.fillStyle='#fff';rg.font='700 20px system-ui';rg.fillText(R.label+(R.mode==='q'?'':' · CAM '+(+R.mode+1)),36,52)}
+  const p=(R.t-R.start)/Math.max(1,R.end-R.start);rg.fillStyle='#fff3';rg.fillRect(0,PH-8,PW,8);rg.fillStyle='#f59e0b';rg.fillRect(0,PH-8,PW*p,8)}
+function drawCam(g,c,x,y,w,h){if(ready(c)){const[sw,sh]=sz(c.el);if(sw){cover(g,c.el,sw,sh,x,y,w,h);return}}g.fillStyle='#000';g.fillRect(x,y,w,h);g.fillStyle='#666';g.font='700 28px system-ui';g.textAlign='center';g.fillText('NO SIGNAL',x+w/2,y+h/2);g.textAlign='left'}
+function rr(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath()}
+function overlay(g){
+  const m=cm();if(!m||!m.S)return;const S=m.S,I=inn(m),T=m.t[I.bat];
+  rr(g,32,28,330,46,10);g.fillStyle='#0b1226e6';g.fill();g.fillStyle='#ef4444';g.beginPath();g.arc(56,51,7,0,7);g.fill();
+  g.fillStyle='#fff';g.font='700 20px system-ui';g.fillText('LIVE  '+m.t[0].short+' v '+m.t[1].short+' · '+m.overs+' ov',74,58);
+  const x=40,y=PH-128,w=PW-80,h=92;rr(g,x,y,w,h,16);g.fillStyle='#0b1226ee';g.fill();rr(g,x,y,200,h,16);g.fillStyle='#16a34a';g.fill();
+  g.fillStyle='#fff';g.font='800 34px system-ui';g.fillText(T.short,x+20,y+44);g.font='600 15px system-ui';g.fillText(T.name.slice(0,20),x+20,y+70);
+  g.font='800 52px system-ui';const sc=I.runs+'/'+I.wk;g.fillText(sc,x+222,y+62);const sw=g.measureText(sc).width;
+  g.font='600 20px system-ui';g.fillStyle='#9fb0ff';g.fillText('('+ovs(I.balls)+')',x+222+sw+10,y+60);
+  const tgt=S.cur===1?S.inns[0].runs+1:0;g.font='600 16px system-ui';g.fillStyle='#fbbf24';
+  g.fillText(S.result||(tgt?'Need '+Math.max(0,tgt-I.runs)+' off '+Math.max(0,m.overs*6-I.balls):'CRR '+(I.balls?(I.runs*6/I.balls).toFixed(2):'0.00')),x+222,y+84);
+  const bx=x+560;g.font='700 20px system-ui';[I.st,I.ns].forEach((n,k)=>{const b=I.bt[n];g.fillStyle=k?'#cbd5ff':'#fff';g.fillText((k?'':'▶ ')+n.slice(0,16)+'  '+b.r+' ('+b.b+')',bx,y+36+k*30)});
+  const K=I.bl[I.bw]||{b:0,r:0,w:0};g.fillStyle='#fff';g.fillText(I.bw.slice(0,16)+'  '+K.w+'-'+K.r+' ('+ovs(K.b)+')',bx+300,y+36);
+  const last=I.ev.filter(e=>e.o===Math.floor(I.balls/6));last.slice(-8).forEach((e,k)=>{g.beginPath();g.arc(bx+312+k*34,y+68,14,0,7);g.fillStyle=e.w?'#ef4444':e.bound?(e.tot===6?'#7c3aed':'#2563eb'):'#334';g.fill();g.fillStyle='#fff';g.font='700 13px system-ui';g.textAlign='center';g.fillText(e.lab.slice(0,3),bx+312+k*34,y+73);g.textAlign='left'})}
+function drawProgram(){
+  if(R.active&&R.onAir)pgc.drawImage(rc,0,0,PW,PH);else drawCam(pgc,cams[pgmCam],0,0,PW,PH);
+  overlay(pgc);
+  if(fx){const p=(performance.now()-fx)/450;if(p>=1)fx=null;else{pgc.fillStyle='#22c55e';pgc.globalAlpha=1-p;pgc.fillRect(PW*p*1.3-200,0,200,PH);pgc.globalAlpha=1}}}
+function drawTiles(){cams.forEach((c,i)=>{const cv=$('#tv'+i);if(!cv)return;const g=cv.getContext('2d');drawCam(g,c,0,0,320,180)})}
+let lastTick=performance.now();
+function tick(){const now=performance.now(),dt=Math.min(100,now-lastTick);lastTick=now;
+  for(const c of cams)if(c.kind==='demo')drawDemo(c,now);
+  capture(now);stepReplay(dt,now);drawReplay();drawProgram();if(tab==='console'){drawTiles();const s=$('#scrub');if(R.active&&document.activeElement!==s)s.value=1000*(R.t-R.start)/Math.max(1,R.end-R.start);$('#rpInfo').textContent=R.active?R.label+' '+((R.t-R.start)/1000).toFixed(2)+'s':'';$('#pgmInfo').textContent=R.active&&R.onAir?'· REPLAY ON AIR':'· CAM '+(pgmCam+1)}}
+try{const w=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),33)'])));w.onmessage=tick}catch(e){setInterval(tick,33)}
+
+/* ---------- replay UI ---------- */
+function ui(){
+  $$('#spdBtns button').forEach(b=>b.classList.toggle('on',+b.dataset.spd===R.speed));
+  $$('#angBtns button').forEach(b=>b.classList.toggle('on',b.dataset.ang==String(R.mode)));
+  $$('#zmBtns button').forEach(b=>b.classList.toggle('on',+b.dataset.z===R.zoom));
+  $('#airBtn').classList.toggle('on',R.onAir);$('#airBtn').textContent=R.onAir?'● REPLAY ON AIR':'REPLAY → AIR';$('#airBtn').classList.toggle('red',R.onAir);
+  $('#playBtn').textContent=R.playing?'⏸':'▶'}
+$('#instBtns').onclick=e=>{const s=e.target.dataset.sec;if(s)instant(+s)};
+$('#angBtns').onclick=e=>{const a=e.target.dataset.ang;if(a!=null){R.mode=a==='q'?'q':+a;ui()}};
+$('#spdBtns').onclick=e=>{const s=e.target.dataset.spd;if(s){R.speed=+s;ui()}};
+$('#zmBtns').onclick=e=>{const z=e.target.dataset.z;if(z){R.zoom=+z;ui()}};
+$('#back5').onclick=()=>{R.t=Math.max(R.t-5000,0);if(R.t<R.start)R.start=R.t;R.doneAt=0;ui()};
+const stepF=d=>{R.playing=false;R.t=Math.min(R.end,Math.max(R.start,R.t+d*1000/FPS));ui()};
+$('#fPrev').onclick=()=>stepF(-1);$('#fNext').onclick=()=>stepF(1);
+const togglePlay=()=>{if(!R.active)return;if(!R.playing&&R.t>=R.end)R.t=R.start;R.playing=!R.playing;R.doneAt=0;ui()};
+$('#playBtn').onclick=togglePlay;
+$('#airBtn').onclick=()=>{if(!R.active)return toast('Start a replay first');R.onAir=!R.onAir;fx=performance.now();ui()};
+$('#liveBtn').onclick=live;
+$('#loopC').onchange=e=>R.loop=e.target.checked;$('#blendC').onchange=e=>R.blend=e.target.checked;
+$('#autoLive').checked=CFG.autoLive;$('#autoLive').onchange=e=>{CFG.autoLive=e.target.checked;save()};
+$('#autoSel').value=CFG.auto;$('#autoSel').onchange=e=>{CFG.auto=e.target.value;save()};
+$('#clipLen').value=CFG.clipLen;$('#clipLen').onchange=e=>{CFG.clipLen=+e.target.value;save()};
+$('#keepSel').value=CFG.keep;$('#keepSel').onchange=e=>{CFG.keep=+e.target.value;save()};
+$('#bufSel').value=CFG.buf;$('#bufSel').onchange=e=>{CFG.buf=+e.target.value;save()};
+$('#scrub').oninput=e=>{if(!R.active)return;R.playing=false;R.t=R.start+(R.end-R.start)*e.target.value/1000;ui()};
+rc.onclick=e=>{const r=rc.getBoundingClientRect();R.fx=(e.clientX-r.left)/r.width;R.fy=(e.clientY-r.top)/r.height};
+$('#drsBtn').onclick=async()=>{const m=cm();if(!m||!m.S)return toast('No live match');const I=inn(m),e=I.ev[I.ev.length-1];if(!e)return toast('No ball yet');R.queue=[];await playBall(e.id,{speed:.25,air:true});};
+document.addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||tab!=='console')return;
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();return undo()}if((e.ctrlKey||e.metaKey)&&e.key==='y'){e.preventDefault();return redo()}
+  const k=e.key;if('1234'.includes(k)&&k)cut(+k-1);else if(k==='r'||k==='R')instant(10);else if(k===' '){e.preventDefault();togglePlay()}
+  else if(k==='ArrowLeft')stepF(-1);else if(k==='ArrowRight')stepF(1);else if(k==='['||k===']'){const S=[.1,.25,.5,1],i=S.indexOf(R.speed);R.speed=S[Math.max(0,Math.min(3,i+(k===']'?1:-1)))];ui()}
+  else if(k==='a'||k==='A')$('#airBtn').click();else if(k==='l'||k==='L')live()});
+
+/* ---------- Facebook Live relay + embed ---------- */
+$('#relayUrl').value=location.protocol.startsWith('http')?(location.protocol==='https:'?'wss://':'ws://')+location.host+'/ingest':'ws://localhost:8080/ingest';
+let ws=null,rec=null,micS=null;const flog=t=>{const p=$('#fbLog');p.textContent+=t+'\n';p.scrollTop=1e9};
+function stopLive(msg){try{rec&&rec.state!=='inactive'&&rec.stop()}catch(e){}if(micS)micS.getTracks().forEach(t=>t.stop());micS=null;try{ws&&ws.close()}catch(e){}ws=null;rec=null;
+  $('#goLive').disabled=false;$('#endLive').disabled=true;$('#fbSt').textContent=msg||'idle';$('#liveBadge').textContent='OFFLINE';$('#liveBadge').classList.remove('live')}
+$('#goLive').onclick=()=>{const key=$('#skey').value.trim();if(!key)return toast('Paste your Facebook stream key');
+  $('#goLive').disabled=true;$('#fbSt').textContent='connecting…';ws=new WebSocket($('#relayUrl').value);
+  ws.onerror=()=>{flog('Cannot reach relay. Run: node cricket-relay.js');stopLive('relay unreachable')};
+  ws.onclose=()=>{if(rec)stopLive('closed')};
+  ws.onmessage=e=>{try{const m=JSON.parse(e.data);flog(m.msg||m.type);if(m.type==='error'||m.type==='ended')stopLive(m.type)}catch(_){}};
+  ws.onopen=async()=>{const stream=pg.captureStream(30);let audio=false;
+    if($('#micC').checked){try{micS=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});micS.getAudioTracks().forEach(t=>stream.addTrack(t));audio=true}catch(e){flog('Mic unavailable — streaming silent')}}
+    const mimes=audio?['video/webm;codecs=h264,opus','video/webm;codecs=vp8,opus','video/webm']:['video/webm;codecs=h264','video/webm;codecs=vp8','video/webm'];
+    const mime=mimes.find(t=>MediaRecorder.isTypeSupported(t));ws.send(JSON.stringify({type:'start',key,audio}));
+    rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:3e6,audioBitsPerSecond:128e3});
+    rec.ondataavailable=e=>{if(e.data.size&&ws&&ws.readyState===1)ws.send(e.data)};rec.start(250);
+    $('#endLive').disabled=false;$('#fbSt').textContent='● LIVE';$('#liveBadge').textContent='LIVE';$('#liveBadge').classList.add('live');flog('Streaming '+mime)}};
+$('#endLive').onclick=()=>stopLive('ended');
+$('#fbLoad').onclick=()=>{const u=$('#fbUrl').value.trim();if(!/^https:\/\/(www\.|m\.|web\.)?(facebook\.com|fb\.watch)\//.test(u))return toast('Enter a facebook.com video URL');
+  const h=`<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u)}&show_text=false&autoplay=true&width=734" allow="autoplay; encrypted-media; picture-in-picture; web-share" allowfullscreen></iframe>`;
+  $('#fbEmbed').innerHTML=h;$('#fbEmbed2').innerHTML=h};
+
+/* ---------- boot ---------- */
+buildTiles();scan(false);ui();renderMatches();renderPad();
+if(DB.cur)loadClipSet();
+</script>
+</body>
+</html>
