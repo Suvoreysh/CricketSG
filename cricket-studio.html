@@ -83,7 +83,7 @@ kbd{background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:0 
     </div>
   </div>
   <div class="panel" style="margin-bottom:14px"><h3>CAMERAS — click a tile to cut to it (keys 1-4)</h3><div id="cams" class="cams"></div>
-    <div class="row"><button id="scanBtn">Scan camera devices</button><span class="mu">Webcam / phone-as-webcam / OBS virtual cam / screen / video file. Demo feeds work without hardware.</span></div></div>
+    <div class="row"><button class="pri" id="addPhone">＋ Add phone camera (QR)</button><button id="scanBtn">Scan camera devices</button><span class="mu">Phones join wirelessly with a QR code. Also: webcam / OBS virtual cam / screen / video file. Demo feeds work without hardware.</span></div></div>
   <div class="split">
     <div>
       <div class="panel" id="rpCtl"><h3>REPLAY CONTROLS</h3>
@@ -161,6 +161,12 @@ kbd{background:var(--p2);border:1px solid var(--ln);border-radius:4px;padding:0 
   <label>How out</label><select id="wHow"><option>bowled</option><option>caught</option><option>lbw</option><option>stumped</option><option>run out</option><option>hit wicket</option></select>
   <label>New batter</label><select id="wNew"></select>
   <div class="row"><button class="red">Confirm wicket</button><button type="button" data-close>Cancel</button></div></form></dialog>
+<dialog id="dPhone"><div><h3>Add phone cameras (wireless)</h3>
+  <p class="mu">On each phone: scan the QR code (or open the link), allow the camera and tap <b>Start camera</b>. Each phone fills the next free camera slot automatically.</p>
+  <div class="row" style="align-items:flex-start;flex-wrap:nowrap"><img id="qr" width="170" height="170" alt="QR code" style="background:#fff;border-radius:8px;padding:4px">
+   <div style="min-width:0;flex:1"><div class="mu">Room code</div><div id="pcode" style="font-size:30px;font-weight:800;letter-spacing:3px"></div><input id="plink" readonly><div class="row"><button id="copyLink">Copy link</button><button id="newCode">New code</button></div></div></div>
+  <h4 style="margin:10px 0 4px">Connected phones</h4><div id="plist" class="mu">None yet</div>
+  <div class="row"><button data-close class="pri">Done</button></div></div></dialog>
 <div id="toast"></div>
 
 <script>
@@ -376,8 +382,10 @@ function drawDemo(c,t){const g=c.dctx,w=CW,h=CH,i=c.id,hue=[135,200,35,280][i];
   g.font='700 30px ui-monospace,monospace';g.fillText((t/1000).toFixed(2)+'s',16,h-18)}
 async function setSource(i,val,file){
   const c=cams[i];if(c.stream){c.stream.getTracks().forEach(t=>t.stop());c.stream=null}
-  if(c.el&&c.el.tagName==='VIDEO'){c.el.pause();c.el.srcObject=null}
+  if(c.el&&c.el.tagName==='VIDEO'&&!c.phone){c.el.pause();c.el.srcObject=null}
+  c.phone=null;
   if(val==='off'){c.el=null;c.kind='off';return}if(val==='demo'){c.el=c.demo;c.kind='demo';return}
+  if(val.startsWith('ph:')){const p=phones.get(val.slice(3));if(p&&p.video){c.el=p.video;c.kind='live';c.phone=val.slice(3)}else{c.el=c.demo;c.kind='demo';$('#src'+i).value='demo'}return}
   try{const v=document.createElement('video');v.muted=true;v.playsInline=true;v.loop=true;
     if(val==='file'){v.src=URL.createObjectURL(file)}else{
       const st=val==='screen'?await navigator.mediaDevices.getDisplayMedia({video:true}):await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:val.slice(4)},width:{ideal:1280},height:{ideal:720}}});
@@ -393,7 +401,7 @@ function buildTiles(){
   const keep=cams.map((c,i)=>$('#src'+i)?$('#src'+i).value:'demo');
   $('#cams').innerHTML=cams.map((c,i)=>`<div class="tile" id="tile${i}"><canvas width="320" height="180" id="tv${i}" data-cut="${i}"></canvas><div class="row"><b>CAM ${i+1}</b>
    <select id="src${i}" data-src="${i}"><option value="demo">Demo feed</option><option value="off">Off</option><option value="screen">Screen share</option><option value="file">Video file…</option>
-   ${devs.map((d,k)=>`<option value="dev:${d.deviceId}">${esc(d.label||'Camera '+(k+1))}</option>`).join('')}</select></div></div>`).join('');
+   ${devs.map((d,k)=>`<option value="dev:${d.deviceId}">${esc(d.label||'Camera '+(k+1))}</option>`).join('')}${[...phones].map(([id,p])=>`<option value="ph:${esc(id)}">Phone: ${esc(p.name)}</option>`).join('')}</select></div></div>`).join('');
   cams.forEach((c,i)=>{const s=$('#src'+i);if([...s.options].some(o=>o.value===keep[i]))s.value=keep[i]});
   $('#tile'+pgmCam).classList.add('pgm')}
 $('#cams').addEventListener('change',e=>{const i=e.target.dataset.src;if(i==null)return;if(e.target.value==='file'){filePending=+i;fileIn.click()}else setSource(+i,e.target.value)});
@@ -538,6 +546,48 @@ $('#endLive').onclick=()=>stopLive('ended');
 $('#fbLoad').onclick=()=>{const u=$('#fbUrl').value.trim();if(!/^https:\/\/(www\.|m\.|web\.)?(facebook\.com|fb\.watch)\//.test(u))return toast('Enter a facebook.com video URL');
   const h=`<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u)}&show_text=false&autoplay=true&width=734" allow="autoplay; encrypted-media; picture-in-picture; web-share" allowfullscreen></iframe>`;
   $('#fbEmbed').innerHTML=h;$('#fbEmbed2').innerHTML=h};
+
+/* ---------- phone cameras over WebRTC ---------- */
+const phones=new Map(),slotOf={};let sig=null,room=null,phoneWanted=false,sigChain=Promise.resolve();
+try{room=sessionStorage.getItem('cls-room')}catch(e){}
+const newRoom=()=>{const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return[...crypto.getRandomValues(new Uint8Array(6))].map(x=>a[x%a.length]).join('')};
+const STUN={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
+function connectSignal(){
+  if(!location.protocol.startsWith('http'))return toast('Open the studio from its web link (Render or localhost) to use phone cameras');
+  if(sig&&sig.readyState<2)return;
+  const me=sig=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/signal?role=studio&room='+room);
+  me.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}sigChain=sigChain.then(()=>onSig(m)).catch(()=>{})};
+  me.onclose=()=>{if(sig===me)sig=null;if(phoneWanted)setTimeout(connectSignal,2000)}}
+async function onSig(m){
+  if(m.type==='join'){phones.set(m.id,Object.assign(phones.get(m.id)||{},{name:m.name||'Phone'}));renderPhones()}
+  else if(m.type==='leave')dropPhone(m.id);
+  else if(m.type==='offer')await handleOffer(m);
+  else if(m.type==='ice'){const p=phones.get(m.from);if(p&&p.pc&&p.pc.remoteDescription)await p.pc.addIceCandidate(m.c).catch(()=>{})}}
+async function handleOffer(m){
+  const id=m.from;let p=phones.get(id);if(!p){p={name:'Phone'};phones.set(id,p)}
+  if(p.pc)try{p.pc.close()}catch(e){}
+  const pc=p.pc=new RTCPeerConnection(STUN);
+  pc.onicecandidate=e=>{if(e.candidate&&sig&&sig.readyState===1)sig.send(JSON.stringify({type:'ice',to:id,c:e.candidate}))};
+  pc.ontrack=e=>{const v=p.video||(p.video=document.createElement('video'));v.muted=true;v.playsInline=true;v.autoplay=true;v.srcObject=e.streams[0];v.play().catch(()=>{});v.onloadeddata=()=>assignPhone(id)};
+  pc.onconnectionstatechange=()=>{p.state=pc.connectionState;renderPhones()};
+  await pc.setRemoteDescription({type:'offer',sdp:m.sdp});const a=await pc.createAnswer();await pc.setLocalDescription(a);
+  sig.send(JSON.stringify({type:'answer',to:id,sdp:a.sdp}))}
+function assignPhone(id){
+  const p=phones.get(id);if(!p||!p.video||cams.some(c=>c.phone===id))return;
+  const free=k=>cams[k].kind==='demo'||cams[k].kind==='off';
+  let i=slotOf[id];if(i==null||!free(i))i=cams.findIndex((c,k)=>free(k));
+  if(i<0)return toast('All 4 slots are in use — choose this phone in a tile drop-down');
+  const c=cams[i];c.phone=id;c.el=p.video;c.kind='live';slotOf[id]=i;buildTiles();$('#src'+i).value='ph:'+id;renderPhones();toast(p.name+' is now CAM '+(i+1))}
+function dropPhone(id){
+  const p=phones.get(id);if(!p)return;try{p.pc&&p.pc.close()}catch(e){}phones.delete(id);
+  cams.forEach(c=>{if(c.phone===id){c.phone=null;c.el=c.demo;c.kind='demo'}});buildTiles();renderPhones();toast((p.name||'Phone')+' disconnected')}
+function renderPhones(){const el=$('#plist');if(!el)return;
+  el.innerHTML=phones.size?[...phones].map(([id,p])=>{const i=cams.findIndex(c=>c.phone===id);return `<div class="row"><b>${esc(p.name)}</b><span class="chip ${p.state==='connected'?'done':''}">${esc(p.state||'connecting')}</span><span class="mu">${i>=0?'on CAM '+(i+1):'not assigned yet'}</span></div>`}).join(''):'None yet — scan the QR code with a phone'}
+function fillPhone(){const link=location.origin+'/cam?r='+room;$('#pcode').textContent=room;$('#plink').value=link;$('#qr').src='/qr?d='+encodeURIComponent(link);renderPhones()}
+function newCode(){room=newRoom();try{sessionStorage.setItem('cls-room',room)}catch(e){}}
+$('#addPhone').onclick=()=>{if(!room)newCode();phoneWanted=true;connectSignal();fillPhone();const d=$('#dPhone');if(!d.open)d.showModal()};
+$('#copyLink').onclick=()=>{try{navigator.clipboard.writeText($('#plink').value);toast('Link copied')}catch(e){$('#plink').select()}};
+$('#newCode').onclick=()=>{phoneWanted=false;[...phones.keys()].forEach(dropPhone);if(sig){const o=sig;sig=null;o.close()}newCode();phoneWanted=true;connectSignal();fillPhone()};
 
 /* ---------- boot ---------- */
 buildTiles();scan(false);ui();renderMatches();renderPad();
